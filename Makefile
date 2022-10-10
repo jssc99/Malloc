@@ -11,12 +11,12 @@ DEPS=$(OBJS:.o=.d)
 all: test_allocator
  
 -include $(DEPS)
- 
-%.o: %.c
-   gcc -c $(CFLAGS) $(CPPFLAGS) $< -o $@
- 
+
+%.o:  %.c 
+	gcc -Wdeprecated-declarations -c $(CFLAGS) $(CPPFLAGS) $< -o $@
+	
 test_allocator: $(OBJS)
-   gcc $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@
- 
+	gcc $(CFLAGS) $(CPPFLAGS) $(LDFLAGS) $^ $(LDLIBS) -o $@
+
 clean:
-   rm -f $(OBJS) $(DEPS) test_allocator
+	rm -f $(OBJS) $(DEPS) test_allocator

@@ -1,5 +1,7 @@
 #pragma once
 #include <stddef.h>
+#include <unistd.h>
+#include <stdio.h>
  
 // Memory functions
 void* m_malloc(size_t size);

@@ -8,7 +8,7 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/proj_malloc",
+            "program": "${workspaceFolder}/test_allocator",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
