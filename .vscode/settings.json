@@ -1,4 +1,6 @@
 {
     "files.associations": {
+        "random": "c",
+        "m_allocator.h": "c"
     }
 }

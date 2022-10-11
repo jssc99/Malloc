@@ -2,22 +2,13 @@
 #include <m_allocator.h>
 #include "metadata.h"
 
-static Metadata *metadata = NULL;
+static Metadata *gHead = NULL;
 
 Metadata *get_free_block(size_t size)
 {
-   if (metadata != NULL)
-   {
-      while (metadata->blockSize < size)
-      {
-         if (metadata->isOccupied == 0)
-            return metadata;
-         if (metadata->next != NULL)
-            metadata = metadata->next;
-         else
-            return NULL;
-      }
-   }
+   for (Metadata *find = gHead; find != NULL; find = find->next)
+      if (find->isOccupied == 0 && find->blockSize >= size)
+         return find;
    return NULL;
 }
 
@@ -34,24 +25,44 @@ void m_setup_hooks(void)
 
 void *m_malloc(size_t size)
 {
-   metadata = get_free_block(size);
-   if (metadata == NULL)
+   Metadata *freeBlock = get_free_block(size);
+   Metadata *newMetadata = sbrk(sizeof(Metadata));
+   if (freeBlock != NULL)
    {
-      Metadata newMetadata;
-      newMetadata.adr = sbrk(size);
-      newMetadata.blockSize = size;
-      newMetadata.isOccupied = 1;
-      if (metadata != NULL)
-      {
-         metadata->next = &newMetadata;
-         metadata = metadata->next;
-      }
+      if (freeBlock->blockSize == size)
+         freeBlock->isOccupied = 1;
       else
-         metadata = &newMetadata;
+      {
+         if (((int)freeBlock->blockSize - (int)size - (int)sizeof(Metadata)) > 0)
+         {
+            newMetadata->adr = freeBlock->adr + size;
+            newMetadata->blockSize = (freeBlock->blockSize - size - sizeof(Metadata));
+            newMetadata->isOccupied = 0;
+            newMetadata->next = freeBlock->next;
+            freeBlock->next = newMetadata;
+         }
+         freeBlock->blockSize = size;
+         freeBlock->isOccupied = 1;
+      }
+      return freeBlock->adr;
    }
    else
-      metadata->isOccupied = 1;
-   return metadata->adr;
+   {
+      newMetadata->adr = sbrk(size);
+      newMetadata->blockSize = size;
+      newMetadata->isOccupied = 1;
+      newMetadata->next = NULL;
+      if (gHead != NULL)
+      {
+         freeBlock = gHead;
+         while (freeBlock->next != NULL)
+            freeBlock = freeBlock->next;
+         freeBlock->next = newMetadata;
+      }
+      else
+         gHead = newMetadata;
+   }
+   return newMetadata->adr;
 }
 
 void *m_realloc(void *ptr, size_t size)
@@ -66,8 +77,26 @@ void *m_calloc(size_t nb, size_t size)
 
 void m_free(void *ptr)
 {
+   for (Metadata *delete = gHead; delete != NULL; delete = delete->next)
+      if (delete->adr == ptr)
+         delete->isOccupied = 0;
+   for (Metadata *fusion = gHead; fusion != NULL; fusion = fusion->next)
+      if (fusion->next != NULL && fusion->isOccupied == 0 && fusion->next->isOccupied == 0)
+      {
+         Metadata *nextOne = fusion->next;
+         fusion->blockSize += nextOne->blockSize;
+         fusion->next = nextOne->next;
+         m_free(nextOne);
+      }
 }
 
 void m_show_info(void)
 {
+   for (Metadata *print = gHead; print != NULL; print = print->next)
+      printf("METADATA | adr : %p, blockSize : %3lu, occupied : %3s, adrNextMeta : %p, adrNext : %p\n",
+             print->adr, print->blockSize,
+             print->isOccupied ? "yes" : "no",
+             print->next,
+             print->next ? print->next->adr : NULL);
+   printf("\n");
 }

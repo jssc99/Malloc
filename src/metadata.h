@@ -6,6 +6,7 @@ typedef struct Metadata
    int *adr;
    size_t blockSize;
    _Bool isOccupied;
+   //struct Metadata *prev;
    struct Metadata *next;
 } Metadata;
 
