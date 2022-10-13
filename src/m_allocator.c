@@ -4,14 +4,30 @@
 
 #define METASIZE sizeof(Metadata)
 
+static Metadata *gHead = NULL;
+static int gHooked = 0;
+
+extern void *__libc_malloc(size_t);
+extern void *__libc_calloc(size_t, size_t);
+extern void *__libc_realloc(void *, size_t);
+extern void __libc_free(void *);
+
+void *malloc(size_t size) { return gHooked ? m_malloc(size) : __libc_malloc(size); }
+void *calloc(size_t num, size_t size) { return gHooked ? m_calloc(num, size) : __libc_calloc(num, size); }
+void *realloc(void *ptr, size_t size) { return gHooked ? m_realloc(ptr, size) : __libc_realloc(ptr, size); }
+void free(void *ptr) { gHooked ? m_free(ptr) : __libc_free(ptr); }
+
+void m_setup_hooks(void)
+{
+   gHooked = 1;
+}
+
 size_t make_it_byte_sized(size_t size)
 {
    while (size % 8 != 0)
       size++;
    return size;
 }
-
-static Metadata *gHead = NULL;
 
 Metadata *get_free_block(size_t size)
 {
@@ -21,23 +37,12 @@ Metadata *get_free_block(size_t size)
    return NULL;
 }
 
-Metadata *get_block_with_adr(void *ptr)
+Metadata *get_block_with_addr(void *ptr)
 {
    for (Metadata *find = gHead; find != NULL; find = find->next)
-      if (find->adr == ptr)
+      if (find->addr == ptr)
          return find;
    return NULL;
-}
-
-void *malloc_hook(size_t size, const void *caller) { return m_malloc(size); }
-void *realloc_hook(void *ptr, size_t size, const void *caller) { return m_realloc(ptr, size); }
-void free_hook(void *ptr, const void *caller) { return m_free(ptr); }
-
-void m_setup_hooks(void)
-{
-   __malloc_hook = malloc_hook;
-   __realloc_hook = realloc_hook;
-   __free_hook = free_hook;
 }
 
 void *m_malloc(size_t size)
@@ -50,24 +55,24 @@ void *m_malloc(size_t size)
          freeBlock->isOccupied = 1;
       else
       {
-         if (((int)freeBlock->blockSize - (int)size - (int)METASIZE) > 0)
+         if (((int)freeBlock->blockSize - (int)size - (int)METASIZE) >= 8) // ARRAY3 MALLOC ADDR_NEXT_META
          {
-            Metadata *newMetadata = freeBlock + METASIZE + size;
-            newMetadata->adr = freeBlock->adr + size + METASIZE;
+            Metadata *newMetadata = freeBlock->addr + size; 
+            newMetadata->addr = freeBlock->addr + size + METASIZE;
             newMetadata->blockSize = (freeBlock->blockSize - size - METASIZE);
             newMetadata->isOccupied = 0;
             newMetadata->next = freeBlock->next;
             freeBlock->next = newMetadata;
+            freeBlock->blockSize = size;
          }
-         freeBlock->blockSize = size;
          freeBlock->isOccupied = 1;
       }
-      return freeBlock->adr;
+      return freeBlock->addr;
    }
    else
    {
       Metadata *newMetadata = sbrk(METASIZE);
-      newMetadata->adr = sbrk(size);
+      newMetadata->addr = sbrk(size);
       newMetadata->blockSize = size;
       newMetadata->isOccupied = 1;
       newMetadata->next = NULL;
@@ -80,7 +85,7 @@ void *m_malloc(size_t size)
       }
       else
          gHead = newMetadata;
-      return newMetadata->adr;
+      return newMetadata->addr;
    }
    return NULL;
 }
@@ -88,60 +93,78 @@ void *m_malloc(size_t size)
 void *m_realloc(void *ptr, size_t size)
 {
    size = make_it_byte_sized(size);
-   Metadata *realloc = get_block_with_adr(ptr);
+   Metadata *realloc = get_block_with_addr(ptr);
+   size_t extention = size - realloc->blockSize;
    if (realloc->next == NULL)
    {
-      realloc->blockSize = size;
-   }
-   else if (realloc->next != NULL && realloc->next->isOccupied == 0 && ((int)realloc->next->blockSize - (int)size + (int)realloc->blockSize) > 0)
-   {
-      realloc->next->blockSize -= size - realloc->blockSize;
+      sbrk(extention);
       realloc->blockSize = size;
    }
    else
    {
-      m_free(realloc->adr);
       ptr = m_malloc(size);
+      Metadata *newRealloc = get_block_with_addr(ptr);
+      for (int i = 0; i < (int)realloc->blockSize; i++)
+         newRealloc->addr[i] = 0;
+      m_free(realloc->addr);
    }
    return ptr;
 }
 
 void *m_calloc(size_t nb, size_t size)
 {
-   size = make_it_byte_sized(size * nb);
-   void *ptr = m_malloc(size);
-   if (ptr != NULL)
+   size_t _size = make_it_byte_sized(size * nb);
+   void *ptr = m_malloc(_size);
+   if (ptr)
    {
-      Metadata *calloc = get_block_with_adr(ptr);
-      for (int i = 0; i < (int)size; i++)
-         calloc->adr[i] = 0;
+      Metadata *calloc = get_block_with_addr(ptr);
+      for (size_t i = 0; i < _size; i++)
+         calloc->addr[i] = 0;
    }
    return ptr;
 }
 
 void m_free(void *ptr)
 {
-   Metadata *delete = get_block_with_adr(ptr);
+   Metadata *delete = get_block_with_addr(ptr);
    delete->isOccupied = 0;
 
    for (Metadata *fusion = get_free_block(1); fusion != NULL; fusion = fusion->next)
       if (fusion->next != NULL && fusion->isOccupied == 0 && fusion->next->isOccupied == 0)
       {
-         Metadata *nextOne = fusion->next;
-         fusion->blockSize += nextOne->blockSize + METASIZE;
-         fusion->next = nextOne->next;
+         fusion->blockSize += fusion->next->blockSize + METASIZE;
+         fusion->next = fusion->next->next;
       }
+
+   Metadata *last = get_free_block(1);
+   Metadata *beforeLast = last;
+   while (last->next != NULL)
+   {
+      beforeLast = last;
+      last = last->next;
+   }
+   if (!last->isOccupied && last != gHead)
+   {
+      sbrk(-(last->blockSize + METASIZE));
+      beforeLast->next = NULL;
+   }
+   else if (gHead->next == NULL && !gHead->isOccupied)
+   {
+      gHead = sbrk(-(gHead->blockSize + METASIZE));
+      gHead = NULL;
+   }
 }
 
 void m_show_info(void)
 {
-   int i = 0;
-   for (Metadata *print = gHead; print != NULL; print = print->next, i++)
-      printf("METADATA #%d | adr: %p | blockSize: %4lu | occupied: %3s | adrNextMeta: %14p | adrNext: %14p\n",
+   Metadata *print = gHead;
+   for (int i = 0; print != NULL; print = print->next, i++)
+      printf("METADATA #%d | addr: %p | blockSize: %4lu | occupied: %3s | addrNextMeta: %14p | addrNext: %14p | brk: %p\n",
              i,
-             print->adr, print->blockSize,
+             print->addr, print->blockSize,
              print->isOccupied ? "yes" : "no",
              print->next,
-             print->next ? print->next->adr : NULL);
+             print->next ? print->next->addr : NULL,
+             sbrk(0));
    printf("\n");
 }

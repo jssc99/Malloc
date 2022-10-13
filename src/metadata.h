@@ -3,7 +3,7 @@ typedef struct Metadata
 {
    // Add metadata information needed
    // e.g. size of the block, pointer, free/occupied
-   int *adr;
+   char *addr;
    size_t blockSize;
    _Bool isOccupied;
    //struct Metadata *prev;

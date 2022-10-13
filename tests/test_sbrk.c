@@ -1,15 +1,21 @@
-#define _DEFAULT_SOURCE
 #include <unistd.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 int main()
 {
-    // Vos tests ici
-    void *brk;
+    void *brk = sbrk(0);
+    printf("sbrk(0) = %p\n", sbrk(0));
 
-    brk = sbrk(0x3100);
-    printf("New break value after sbrk( 0x3100 ) \t%p\n", brk);
+    printf("brk = sbrk(3000): %p\n", brk = sbrk(3000));
+    printf("sbrk(0) = %p\n", sbrk(0));
 
-    brk = sbrk(0x0200);
-    printf("New break value after sbrk( 0x0200 ) \t%p\n", brk);
+    printf("brk = sbrk(200): %p\n", brk = sbrk(200));
+    printf("sbrk(0) = %p\n", sbrk(0));
+
+    printf("brk = sbrk(-200): %p\n", brk = sbrk(-200));
+    printf("sbrk(0) = %p\n", sbrk(0));
+
+    printf("brk = sbrk(-3000): %p\n", brk = sbrk(-3000));
+    printf("sbrk(0) = %p\n", sbrk(0));
 }
