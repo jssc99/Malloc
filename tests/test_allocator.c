@@ -30,8 +30,12 @@ void test_alloc()
    char *array4 = m_malloc(95 * sizeof(char));
    m_show_info();
 
-   printf("ARRAY4 REALLOC 130\n");
-   array4 = m_realloc(array4, 130 * sizeof(char));
+   printf("ARRAY3 REALLOC 130\n");
+   array3 = m_realloc(array3, 130 * sizeof(char));
+   m_show_info();
+
+   printf("ARRAY3 REALLOC 15\n");
+   array3 = m_realloc(array3, 15 * sizeof(char));
    m_show_info();
 
    printf("ARRAY3 FREE\n");

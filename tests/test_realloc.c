@@ -11,7 +11,7 @@ int main()
     printf("ptr1=%p - ptr2=%p\n", ptr1, ptr2);
     printf("*ptr1 = %d\n", *ptr1);
 
-    ptr1 = realloc(ptr1, 10 * sizeof(int));
+    ptr1 = realloc(ptr1, 10);
     printf("ptr1=%p - ptr2=%p\n", ptr1, ptr2);
     printf("*ptr1 = %d\n", *ptr1);
 
