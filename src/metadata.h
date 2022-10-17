@@ -2,7 +2,7 @@
 typedef struct Metadata
 {
    size_t blockSize;
-   char *addr;
+   //char *addr;
    _Bool isOccupied;
    struct Metadata *next;
 } Metadata;
