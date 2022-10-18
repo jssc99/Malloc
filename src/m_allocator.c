@@ -32,9 +32,9 @@ size_t total_size_of(Metadata *meta)
    return (sizeof(Metadata) + meta->blockSize);
 }
 
-char *get_addr_block(Metadata *meta)
+void *get_addr_block(Metadata *meta)
 {
-   return (char *)(meta + 1);
+   return (void *)(meta + 1);
 }
 
 Metadata *get_free_meta(size_t size)
@@ -54,13 +54,22 @@ Metadata *get_smallest_free_meta(size_t size)
       {
          if (smallest && smallest->blockSize > find->blockSize)
             smallest = find;
-         else
+         else if (!smallest)
             smallest = find;
       }
    }
    if (smallest)
       return smallest;
    return NULL;
+}
+
+Metadata *get_size_exact_free_meta(size_t size)
+{
+   Metadata *exact = get_smallest_free_meta(size);
+   if (exact && exact->blockSize == size)
+      return exact;
+   else
+      return NULL;
 }
 
 Metadata *get_meta_with_addr(void *ptr)
@@ -82,10 +91,11 @@ Metadata *make_metadata(void *addrMeta, size_t blockSize, _Bool occupied, Metada
 
 char *split(Metadata *freeBlock, size_t size)
 {
-   long sizeLeft = (long)freeBlock->blockSize - (long)size - (long)sizeof(Metadata);
-   if (freeBlock->blockSize != size && sizeLeft >= 8)
-   {
-      Metadata *newMetadata = make_metadata(get_addr_block(freeBlock) + size, sizeLeft, 0, freeBlock->next);
+   if (freeBlock->blockSize != size && freeBlock->blockSize - size >= sizeof(Metadata) + 16)
+   { // array3 malloc 15 ok    array6 malloc 94 ok    !array8 calloc 17!
+      size_t sizeLeft = freeBlock->blockSize - size - sizeof(Metadata);
+      Metadata *newMetadata = make_metadata(get_addr_block(freeBlock) + size,
+                                            sizeLeft, 0, freeBlock->next);
       freeBlock->next = newMetadata;
       freeBlock->blockSize = size;
    }
@@ -119,26 +129,43 @@ void *m_malloc(size_t size)
    return NULL;
 }
 
-void *m_realloc(void *ptr, size_t size)
+void transfert_data(Metadata *old, Metadata *new, size_t size)
+{
+   char *addrRealloc = get_addr_block(old);
+   char *addrPerfect = get_addr_block(new);
+   for (unsigned int i = 0; i < size; i++)
+      addrPerfect[i] = addrRealloc[i];
+}
+
+void *m_realloc(void *ptr, size_t size) // ARRAY7 REALLOC 180 pb taille
 {
    size = make_it_byte_sized(size);
    Metadata *realloc = get_meta_with_addr(ptr);
    if (realloc->blockSize == size)
       return ptr;
-      
+
    long extention = (long)size - (long)realloc->blockSize;
-   if (!realloc->next)
+   Metadata *perfect = get_size_exact_free_meta(size);
+   if (perfect)
+   {
+      perfect->isOccupied = 1;
+      transfert_data(realloc, perfect, size);
+      free(get_addr_block(realloc));
+      return (get_addr_block(perfect));
+   }
+   else if (realloc->next && !realloc->next->isOccupied && realloc->blockSize - size >= sizeof(Metadata) + 16)
+   {
+      Metadata *nextOne = realloc->next;
+      Metadata *newMetadata = make_metadata((void *)nextOne + extention,
+                                            nextOne->blockSize - extention, 0, nextOne->next);
+      realloc->next = newMetadata;
+      realloc->blockSize = size;
+      free(get_addr_block(nextOne));
+   }
+   else if (!realloc->next)
    {
       sbrk(extention);
       realloc->blockSize = size;
-   }
-   else if (realloc->next && !realloc->next->isOccupied && (long)realloc->next->blockSize - extention >= 8)
-   {
-      Metadata *nextOne = realloc->next;
-      Metadata *newMetadata = make_metadata(get_addr_block(nextOne) + extention, nextOne->blockSize - extention, 0, nextOne->next);
-      realloc->next = newMetadata;
-      realloc->blockSize = size;
-      // free(nextOne);
    }
    else
    {
@@ -146,10 +173,7 @@ void *m_realloc(void *ptr, size_t size)
       Metadata *newRealloc = get_meta_with_addr(ptr);
       if (extention > 0)
          extention = 0;
-      char *addrRealloc = get_addr_block(realloc);
-      char *addrNewRealloc = get_addr_block(newRealloc);
-      for (size_t i = 0; i < realloc->blockSize + extention; i++)
-         addrNewRealloc[i] = addrRealloc[i];
+      transfert_data(realloc, newRealloc, realloc->blockSize + extention);
       m_free(get_addr_block(realloc));
    }
    return ptr;
@@ -158,24 +182,26 @@ void *m_realloc(void *ptr, size_t size)
 void *m_calloc(size_t nb, size_t size)
 {
    size_t _size = make_it_byte_sized(size * nb);
-   void *ptr = m_malloc(_size); 
-    if (ptr)
-    {
-       Metadata *calloc = get_meta_with_addr(ptr);
-       char *addrCalloc = get_addr_block(calloc);
-       for (size_t i = 0; i < _size; i++)
-          addrCalloc[i] = 0;
-    }
+   void *ptr = m_malloc(_size);
+   if (ptr)
+   {
+      char *addrBlockCalloc = get_addr_block(get_meta_with_addr(ptr));
+      for (size_t i = 0; i < _size; i++)
+         addrBlockCalloc[i] = 0;
+   }
    return ptr;
 }
 
-void fusion(void) // improve?
+void fusion(void) // improve? too big?
 {
-   for (Metadata *fusion = get_free_meta(1); fusion != NULL; fusion = fusion->next)
+   for (Metadata *fusion = get_free_meta(0); fusion != NULL; fusion = fusion->next)
       if (fusion->next != NULL && !fusion->isOccupied && !fusion->next->isOccupied)
       {
-         fusion->blockSize += total_size_of(fusion->next);
-         fusion->next = fusion->next->next;
+         while (fusion->next && !fusion->next->isOccupied)
+         {
+            fusion->blockSize += total_size_of(fusion->next);
+            fusion->next = fusion->next->next;
+         }
       }
 }
 

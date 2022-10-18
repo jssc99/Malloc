@@ -46,12 +46,12 @@ void test_alloc()
    m_free(array3);
    m_show_info();
 
-   printf("ARRAY4 FREE\n");
-   m_free(array4);
+   printf("ARRAY2 FREE\n");
+   m_free(array2);
    m_show_info();
 
-   printf("ARRAY5 FREE\n");
-   m_free(array5);
+   printf("ARRAY4 FREE\n");
+   m_free(array4);
    m_show_info();
 
    printf("ARRAY6 MALLOC 94\n");
@@ -70,8 +70,8 @@ void test_alloc()
       printf("%3d ", array7[i]);
    printf("\n\n");
 
-   printf("ARRAY2 FREE\n");
-   m_free(array2);
+   printf("ARRAY5 FREE\n");
+   m_free(array5);
    m_show_info();
 
    printf("ARRAY7 REALLOC 102\n");
@@ -100,9 +100,14 @@ void test_alloc()
       printf("%3d ", array7[i]);
    printf("\n\n");
 
-   printf("ARRAY8 CALLOC 17\n");
-   char *array8 = m_calloc(17, sizeof(char));
+   printf("ARRAY8 CALLOC 165\n");
+   char *array8 = m_calloc(165, sizeof(char));
    m_show_info();
+
+   printf("CALLOC ARRAY8 MEM:\n");
+   for (int i = 0; i < 168; i++)
+      printf("%3d ", array8[i]);
+   printf("\n\n");
 
    printf("ARRAY6 FREE\n");
    m_free(array6);
