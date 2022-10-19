@@ -37,14 +37,23 @@ void *get_addr_block(Metadata *meta)
    return (void *)(meta + 1);
 }
 
-Metadata *get_free_meta(size_t size)
+unsigned int *how_many_free_meta()
+{
+   unsigned int cpt = 0;
+   for (Metadata *find = gHead; find != NULL; find = find->next)
+      if (find->isOccupied == 0)
+         cpt++;
+   return cpt;
+}
+
+
+Metadata *get_first_free_meta()
 {
    for (Metadata *find = gHead; find != NULL; find = find->next)
-      if (find->isOccupied == 0 && find->blockSize >= size)
+      if (find->isOccupied == 0)
          return find;
    return NULL;
 }
-
 Metadata *get_smallest_free_meta(size_t size)
 {
    Metadata *smallest = NULL;
@@ -91,7 +100,7 @@ Metadata *make_metadata(void *addrMeta, size_t blockSize, _Bool occupied, Metada
 
 char *split(Metadata *freeBlock, size_t size)
 {
-   if (freeBlock->blockSize != size && freeBlock->blockSize - size >= sizeof(Metadata) + 16)
+   if (freeBlock->blockSize != size && freeBlock->blockSize - size >= sizeof(Metadata) + 8)
    { // array3 malloc 15 ok    array6 malloc 94 ok    !array8 calloc 17!
       size_t sizeLeft = freeBlock->blockSize - size - sizeof(Metadata);
       Metadata *newMetadata = make_metadata(get_addr_block(freeBlock) + size,
@@ -137,7 +146,35 @@ void transfert_data(Metadata *old, Metadata *new, size_t size)
       addrPerfect[i] = addrRealloc[i];
 }
 
-void *m_realloc(void *ptr, size_t size) // ARRAY7 REALLOC 180 pb taille
+void *perfect_fit(Metadata *perfect, Metadata *realloc, size_t size)
+{
+   perfect->isOccupied = 1;
+   transfert_data(realloc, perfect, size);
+   free(get_addr_block(realloc));
+   return get_addr_block(perfect);
+}
+
+void free_space_next(Metadata *realloc, size_t size, long extention)
+{
+   Metadata *nextOne = realloc->next;
+   Metadata *newMetadata = make_metadata((void *)nextOne + extention,
+                                         nextOne->blockSize - extention, 0, nextOne->next);
+   realloc->next = newMetadata;
+   realloc->blockSize = size;
+}
+
+void *create_new_block(Metadata *realloc, size_t size, long extention)
+{
+   void *ptr = m_malloc(size);
+   Metadata *newRealloc = get_meta_with_addr(ptr);
+   if (extention > 0)
+      extention = 0;
+   transfert_data(realloc, newRealloc, realloc->blockSize + extention);
+   m_free(get_addr_block(realloc));
+   return ptr;
+}
+
+void *m_realloc(void *ptr, size_t size)
 {
    size = make_it_byte_sized(size);
    Metadata *realloc = get_meta_with_addr(ptr);
@@ -147,35 +184,16 @@ void *m_realloc(void *ptr, size_t size) // ARRAY7 REALLOC 180 pb taille
    long extention = (long)size - (long)realloc->blockSize;
    Metadata *perfect = get_size_exact_free_meta(size);
    if (perfect)
-   {
-      perfect->isOccupied = 1;
-      transfert_data(realloc, perfect, size);
-      free(get_addr_block(realloc));
-      return (get_addr_block(perfect));
-   }
-   else if (realloc->next && !realloc->next->isOccupied && realloc->blockSize - size >= sizeof(Metadata) + 16)
-   {
-      Metadata *nextOne = realloc->next;
-      Metadata *newMetadata = make_metadata((void *)nextOne + extention,
-                                            nextOne->blockSize - extention, 0, nextOne->next);
-      realloc->next = newMetadata;
-      realloc->blockSize = size;
-      free(get_addr_block(nextOne));
-   }
-   else if (!realloc->next)
+      return perfect_fit(perfect, realloc, size);
+   else if (realloc->next && !realloc->next->isOccupied && realloc->blockSize - size >= sizeof(Metadata) + 8)
+      free_space_next(realloc, size, extention);
+   else if (!realloc->next) // end of list
    {
       sbrk(extention);
       realloc->blockSize = size;
    }
    else
-   {
-      ptr = m_malloc(size);
-      Metadata *newRealloc = get_meta_with_addr(ptr);
-      if (extention > 0)
-         extention = 0;
-      transfert_data(realloc, newRealloc, realloc->blockSize + extention);
-      m_free(get_addr_block(realloc));
-   }
+      ptr = create_new_block(realloc, size, extention);
    return ptr;
 }
 
@@ -194,7 +212,7 @@ void *m_calloc(size_t nb, size_t size)
 
 void fusion(void) // improve? too big?
 {
-   for (Metadata *fusion = get_free_meta(0); fusion != NULL; fusion = fusion->next)
+   for (Metadata *fusion = get_first_free_meta(); fusion != NULL; fusion = fusion->next)
       if (fusion->next != NULL && !fusion->isOccupied && !fusion->next->isOccupied)
       {
          while (fusion->next && !fusion->next->isOccupied)
@@ -235,7 +253,8 @@ void m_free(void *ptr)
    if (delete)
       delete->isOccupied = 0;
 
-   fusion();
+   if (how_many_free_meta() > 1)
+      fusion();
    sbrk_placement();
 }
 

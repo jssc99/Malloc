@@ -100,12 +100,12 @@ void test_alloc()
       printf("%3d ", array7[i]);
    printf("\n\n");
 
-   printf("ARRAY8 CALLOC 165\n");
-   char *array8 = m_calloc(165, sizeof(char));
+   printf("ARRAY8 CALLOC 135\n");
+   char *array8 = m_calloc(135, sizeof(char));
    m_show_info();
 
    printf("CALLOC ARRAY8 MEM:\n");
-   for (int i = 0; i < 168; i++)
+   for (int i = 0; i < 136; i++)
       printf("%3d ", array8[i]);
    printf("\n\n");
 
