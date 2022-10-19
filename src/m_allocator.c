@@ -23,7 +23,7 @@ void m_setup_hooks(void)
 
 size_t make_it_byte_sized(size_t size)
 {
-   while (size % 8 != 0)
+   while (size % 8)
       size++;
    return size;
 }
