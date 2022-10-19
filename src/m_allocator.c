@@ -142,7 +142,7 @@ void *perfect_fit(Metadata *perfect, Metadata *realloc, size_t size)
 {
    perfect->isOccupied = 1;
    transfert_data(realloc, perfect, size);
-   free(get_addr_block(realloc));
+   m_free(get_addr_block(realloc));
    freeblocks--;
    return get_addr_block(perfect);
 }
