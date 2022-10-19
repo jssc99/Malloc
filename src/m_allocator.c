@@ -4,6 +4,7 @@
 
 static Metadata *gHead = NULL;
 static int gHooked = 0;
+static int freeblocks = 0;
 
 extern void *__libc_malloc(size_t);
 extern void *__libc_calloc(size_t, size_t);
@@ -37,23 +38,14 @@ void *get_addr_block(Metadata *meta)
    return (void *)(meta + 1);
 }
 
-unsigned int *how_many_free_meta()
-{
-   unsigned int cpt = 0;
-   for (Metadata *find = gHead; find != NULL; find = find->next)
-      if (find->isOccupied == 0)
-         cpt++;
-   return cpt;
-}
-
-
-Metadata *get_first_free_meta()
+Metadata *get_first_free_meta(void)
 {
    for (Metadata *find = gHead; find != NULL; find = find->next)
       if (find->isOccupied == 0)
          return find;
    return NULL;
 }
+
 Metadata *get_smallest_free_meta(size_t size)
 {
    Metadata *smallest = NULL;
@@ -108,6 +100,8 @@ char *split(Metadata *freeBlock, size_t size)
       freeBlock->next = newMetadata;
       freeBlock->blockSize = size;
    }
+   else
+      freeblocks--;
    freeBlock->isOccupied = 1;
    return get_addr_block(freeBlock);
 }
@@ -151,6 +145,7 @@ void *perfect_fit(Metadata *perfect, Metadata *realloc, size_t size)
    perfect->isOccupied = 1;
    transfert_data(realloc, perfect, size);
    free(get_addr_block(realloc));
+   freeblocks--;
    return get_addr_block(perfect);
 }
 
@@ -210,7 +205,7 @@ void *m_calloc(size_t nb, size_t size)
    return ptr;
 }
 
-void fusion(void) // improve? too big?
+void fusion(void)
 {
    for (Metadata *fusion = get_first_free_meta(); fusion != NULL; fusion = fusion->next)
       if (fusion->next != NULL && !fusion->isOccupied && !fusion->next->isOccupied)
@@ -218,6 +213,7 @@ void fusion(void) // improve? too big?
          while (fusion->next && !fusion->next->isOccupied)
          {
             fusion->blockSize += total_size_of(fusion->next);
+            freeblocks--;
             fusion->next = fusion->next->next;
          }
       }
@@ -229,6 +225,7 @@ void sbrk_placement(void)
    {
       gHead = sbrk(-(total_size_of(gHead)));
       gHead = NULL;
+      freeblocks--;
    }
    else
    {
@@ -243,6 +240,7 @@ void sbrk_placement(void)
       {
          sbrk(-(total_size_of(last)));
          beforeLast->next = NULL;
+         freeblocks--;
       }
    }
 }
@@ -251,10 +249,16 @@ void m_free(void *ptr)
 {
    Metadata *delete = get_meta_with_addr(ptr);
    if (delete)
+   {
       delete->isOccupied = 0;
+      freeblocks++;
+   }
 
-   if (how_many_free_meta() > 1)
+   if (freeblocks > 1)
       fusion();
+   else if (freeblocks < 0)
+      printf("error freeblocks");
+
    sbrk_placement();
 }
 
@@ -270,5 +274,6 @@ void m_show_info(void)
              print->next,
              print->next ? "nextblock" : "calc sbrk",
              print->next ? get_addr_block(print->next) : (get_addr_block(print) + print->blockSize));
+   printf("nb free blocks: %d\n", freeblocks);
    printf("actual sbrk(0) = %p\n\n", sbrk(0));
 }
