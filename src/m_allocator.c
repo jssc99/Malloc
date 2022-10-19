@@ -59,9 +59,7 @@ Metadata *get_smallest_free_meta(size_t size)
             smallest = find;
       }
    }
-   if (smallest)
-      return smallest;
-   return NULL;
+   return smallest;
 }
 
 Metadata *get_size_exact_free_meta(size_t size)
@@ -93,7 +91,7 @@ Metadata *make_metadata(void *addrMeta, size_t blockSize, _Bool occupied, Metada
 char *split(Metadata *freeBlock, size_t size)
 {
    if (freeBlock->blockSize != size && freeBlock->blockSize - size >= sizeof(Metadata) + 8)
-   { // array3 malloc 15 ok    array6 malloc 94 ok    !array8 calloc 17!
+   {
       size_t sizeLeft = freeBlock->blockSize - size - sizeof(Metadata);
       Metadata *newMetadata = make_metadata(get_addr_block(freeBlock) + size,
                                             sizeLeft, 0, freeBlock->next);
@@ -178,11 +176,12 @@ void *m_realloc(void *ptr, size_t size)
 
    long extention = (long)size - (long)realloc->blockSize;
    Metadata *perfect = get_size_exact_free_meta(size);
+
    if (perfect)
       return perfect_fit(perfect, realloc, size);
    else if (realloc->next && !realloc->next->isOccupied && realloc->blockSize - size >= sizeof(Metadata) + 8)
       free_space_next(realloc, size, extention);
-   else if (!realloc->next) // end of list
+   else if (!realloc->next) // if end of list
    {
       sbrk(extention);
       realloc->blockSize = size;
@@ -274,6 +273,6 @@ void m_show_info(void)
              print->next,
              print->next ? "nextblock" : "calc sbrk",
              print->next ? get_addr_block(print->next) : (get_addr_block(print) + print->blockSize));
-   printf("nb free blocks: %d\n", freeblocks);
-   printf("actual sbrk(0) = %p\n\n", sbrk(0));
+   printf("actual sbrk(0) = %p\n", sbrk(0));
+   printf("nb free blocks: %d\n\n", freeblocks);
 }
