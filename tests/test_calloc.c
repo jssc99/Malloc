@@ -17,4 +17,5 @@ int main()
     printf("\n%p\n", pointer);
 
     free(pointer);
+    
 }
