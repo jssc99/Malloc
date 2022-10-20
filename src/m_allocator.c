@@ -50,7 +50,6 @@ Metadata *get_smallest_free_meta(size_t size)
 {
    Metadata *smallest = NULL;
    for (Metadata *find = gHead; find != NULL; find = find->next)
-   {
       if (find->isOccupied == 0 && find->blockSize >= size)
       {
          if (smallest && smallest->blockSize > find->blockSize)
@@ -58,7 +57,6 @@ Metadata *get_smallest_free_meta(size_t size)
          else if (!smallest)
             smallest = find;
       }
-   }
    return smallest;
 }
 
@@ -208,14 +206,12 @@ void fusion(void)
 {
    for (Metadata *fusion = get_first_free_meta(); fusion != NULL; fusion = fusion->next)
       if (fusion->next != NULL && !fusion->isOccupied && !fusion->next->isOccupied)
-      {
          while (fusion->next && !fusion->next->isOccupied)
          {
             fusion->blockSize += total_size_of(fusion->next);
             freeblocks--;
             fusion->next = fusion->next->next;
          }
-      }
 }
 
 void sbrk_placement(void)
