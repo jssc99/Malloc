@@ -1,4 +1,4 @@
-CFLAGS=-O0 -g -Wall -Wextra -Wno-unused-parameter -Iinclude
+CFLAGS=-O0 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-variable -Wno-deprecated-declarations -Iinclude
 CPPFLAGS=-MMD
 LDFLAGS=
 LDLIBS=
