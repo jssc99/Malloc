@@ -120,7 +120,6 @@ void test_alloc()
    printf("ARRAY7 FREE\n");
    m_free(array7);
    m_show_info();
-
 }
 
 int main()
