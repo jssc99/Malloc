@@ -130,6 +130,5 @@ int main()
 
    printf("\n\n\nSTART 2\n");
    test_alloc();
-   
    return 0;
 }
