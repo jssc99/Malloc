@@ -3,9 +3,13 @@
 
 #include <m_allocator.h>
 
-void test_alloc()
+#include "test_m_malloc.c"
+#include "test_m_realloc.c"
+#include "test_m_calloc.c"
+#include "test_m_free.c"
+
+void test_allocator(void)
 {
-   // MALLOC
    printf("ARRAY1 MALLOC 128\n");
    char *array1 = m_malloc(128 * sizeof(char));
    m_show_info();
@@ -82,7 +86,7 @@ void test_alloc()
    for (int i = 0; i < 100; i++)
       printf("%3d ", array7[i]);
    printf("\n\n");
-   
+
    printf("ARRAY6 REALLOC 130\n");
    array6 = m_realloc(array6, 130 * sizeof(char));
    m_show_info();
@@ -126,9 +130,44 @@ int main()
 {
    printf("START\n");
    m_setup_hooks();
-   test_alloc();
 
-   printf("\n\n\nSTART 2\n");
-   test_alloc();
+   int test = 6;
+
+   switch (test)
+   {
+   case 0:
+      test_allocator();
+      printf("\n\n\nSTART 2\n");
+      test_allocator();
+      break;
+
+   case 1:
+      test_malloc();
+      break;
+
+   case 2:
+      test_realloc();
+      break;
+
+   case 3:
+      test_calloc();
+      break;
+
+   case 4:
+      test_split();
+      break;
+
+   case 5:
+      test_fusion();
+      break;
+
+   case 6:
+      test_free();
+      break;
+
+   default:
+      break;
+   }
+
    return 0;
 }
